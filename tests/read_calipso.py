@@ -21,4 +21,7 @@ def match_with_l1b(file):
 if __name__ == '__main__':
     calipso_dir = '/nobackupp10/tvandal/data/calipso/'
     file_test = os.path.join(calipso_dir, '2019/01/CAL_LID_L2_01kmCLay-Standard-V4-20.2019-01-17T04-46-46ZD.hdf')
-    match_with_l1b(file_test)
+    #match_with_l1b(file_test)
+    ds = read_file(file_test)
+    
+    print(ds['Surface_Top_Altitude_532'])

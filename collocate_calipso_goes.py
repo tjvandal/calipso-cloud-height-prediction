@@ -15,7 +15,6 @@ MPI_SIZE = comm.Get_size()
 # Calipso directory
 calipso_dir = '/nobackupp10/tvandal/data/calipso/'
 calipso_files = glob.glob(calipso_dir + '*/*/*.hdf')
-    
 
 # GOES-16 directory
 goes_dir = '/nex/datapool/geonex/public/GOES16/NOAA-L1B/'
@@ -36,19 +35,18 @@ def match_calipso_file_to_goes(f, write_dir):
     for n, t in enumerate(cal_ds.time.values):
         lat = cal_ds.sel(time=t).lats.values
         lon = cal_ds.sel(time=t).lons.values
-        
-        
+
         if (lon > -30) or (lon < -130) or (np.abs(lat) > 45):
             continue
 
         ts = t.astype('M8[ms]').astype('O')
         files = GEO.snapshot_file(ts.year, ts.timetuple().tm_yday, 
                       ts.hour, ts.minute)
-        
+
         out_file = os.path.join(write_dir, f'{t}_{lat}_{lon}.nc')
         if os.path.exists(out_file):
             continue
-        
+
         if (prev_files == files).all():
             pass
         else:
@@ -66,15 +64,12 @@ def match_calipso_file_to_goes(f, write_dir):
 
         patch = geo_ds.isel(lat=slice(lat_idx-radius, lat_idx+radius+1),
                             lon=slice(lon_idx-radius, lon_idx+radius+1))
-        
+
         sample = cal_ds.sel(time=t).merge(patch)
         sample.to_netcdf(out_file)
         print(f"wrote to {out_file}")
         prev_files = files
-        
-        
-        
-        
+
     return
 
 
