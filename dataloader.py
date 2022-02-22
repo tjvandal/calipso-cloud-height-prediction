@@ -24,13 +24,13 @@ class CalipsoGOES(data.Dataset):
         x = torch.Tensor(x).float()
 
         y = ds['Layer_Top_Altitude'].values # (layers,)
+        
         y = y[:1]
         y = torch.Tensor(y).float()
         y[y==-9999] = -10.
         #Stratospheric features reported during daylight -- especially those reported above 20 km
         #between 60N and 60S -- are often noise artifacts and should be treated with suspicion.
-        y[y > 20] = -10
-
+        #y[y > 20] = -10
 
         #y = y / 10 - 0.5  # scale top layer (value in kms)
 
