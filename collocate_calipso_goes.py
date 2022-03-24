@@ -66,11 +66,11 @@ def match_calipso_file_to_goes(f, write_dir):
                             lon=slice(lon_idx-radius, lon_idx+radius+1))
 
         sample = cal_ds.sel(time=t).merge(patch)
-        sample.to_netcdf(out_file)
-        print(f"wrote to {out_file}")
-        prev_files = files
-
-    return
+        
+        if np.all(np.isfinite(sample['Rad'].values)):
+            sample.to_netcdf(out_file)
+            print(f"wrote to {out_file}")
+            prev_files = files
 
 
 # Split files in train,valid,test

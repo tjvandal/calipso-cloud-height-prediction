@@ -53,7 +53,6 @@ class CloudHeight(object):
 
         geo_ds = xr.concat(geo_ds, dim='band')
         geo_ds = geo_ds.assign_coords(coords=dict(band=files.index.values))
-
         
         #geo_ds = geo_ds.sel(lat=slice(20,50), lon=slice(-105,-65))
         
@@ -83,29 +82,46 @@ class CloudHeight(object):
                 j = min(w-tile_size, j)
                 x_patch = x[np.newaxis,:,i:i+tile_size,j:j+tile_size]
                 x_tensor = torch.Tensor(x_patch).float().cuda()
-                output = self.model(x_tensor).cpu().detach().numpy()   
-                y[i+pad:i+tile_size-pad, j+pad:j+tile_size-pad] += output[0,0]
+                output = self.model(x_tensor).cpu().detach().numpy()
+                probs = output[:,:1]
+                values = output[:,1:]
+                values = (values * 2) + 5
+                
+                cloudy = probs > 0.1
+                result = np.where(cloudy, values, np.zeros_like(values))
+                
+                y[i+pad:i+tile_size-pad, j+pad:j+tile_size-pad] += result[0,0] #result[0,0]
                 counter[i+pad:i+tile_size-pad, j+pad:j+tile_size-pad] += 1
                 
         print(counter)
-        return y / counter #[r:-r,r:-r]
+        heights = y / counter #[r:-r,r:-r]
         
+        
+        geo_ds['CTH'] = xr.DataArray(heights, coords=[("lat", geo_ds.lat.values), ("lon", geo_ds.lon.values)])
+        return geo_ds
+    
 
 def make_cloud_height_map():
     patch_size = 1
     model = get_model(input_size=patch_size)
-    checkpoint_file = 'models/patchsize-1-conv/checkpoint.pth.tar'
+    checkpoint_file = 'models/patchsize-1-classify/checkpoint.pth.tar'
     runner = CloudHeight(model, checkpoint_file, product='ABI-L1b-RadF')
-    t = dt.datetime.now() - dt.timedelta(hours=6, days=10)
-    heights = runner.forward(t)
-
+    t = dt.datetime.now() - dt.timedelta(hours=2, days=2)
+    ds = runner.forward(t)
     
-    plt.imshow(heights[::-1], cmap='rainbow', vmin=0, vmax=8)
-    plt.colorbar()
-    plt.axis('off')
+    print(ds)
+    
+    fig, axs = plt.subplots(2,1,figsize=(6,10))
+    axs = axs.flatten()
+    
+    axs[0].imshow(ds['Rad'].sel(band=9).values[::-1], vmin=220, vmax=320, cmap='jet')
+    
+    im = axs[1].imshow(ds['CTH'].values[::-1], cmap='rainbow', vmin=0, vmax=8)
+    #axs[1].set_colorbar()
+    fig.colorbar(im, ax=axs[1], shrink=0.5)
     plt.savefig('heights_map.png', dpi=200)
     plt.close()
-    print(np.histogram(heights.flatten()))
+    #print(np.histogram(heights.flatten()))
     
 
         
@@ -113,14 +129,13 @@ def test_set_results():
     patch_size = 1
     
     model = get_model(input_size=patch_size).cuda()
-    checkpoint_file = 'models/patchsize-1-conv/checkpoint.pth.tar'
+    checkpoint_file = 'models/patchsize-1-classify/checkpoint.pth.tar'
     checkpoint = torch.load(checkpoint_file)
     model.load_state_dict(checkpoint['model'])
     
     #runner = CloudHeight(model, checkpoint_file)
     data_path = '/nobackupp10/tvandal/cloud-height/data/calipso_goes_pairs_w_qa/' 
     dataset = CalipsoGOES(data_path, patch_size=patch_size, mode='test')
-    
     
     data = []
     
@@ -148,4 +163,4 @@ def test_set_results():
         
 if __name__ == '__main__':
     make_cloud_height_map()
-    test_set_results()
+    #test_set_results()

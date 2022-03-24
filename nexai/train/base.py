@@ -111,12 +111,14 @@ class CloudHeightTrainer(BaseTrainer):
                  device=None,
                  distribute=False,
                  rank=0,
-                 loss='L2'):
+                 loss='L2',
+                 fill_value=-9999.):
         BaseTrainer.__init__(self, model, model_path, lr=lr, 
                              device=device, distribute=distribute, rank=rank)
 
         # set loss functions
         self.loss = nn.MSELoss()
+        self.bce = nn.BCELoss()
 
     def step(self, inputs, labels, log=False, train=True):
         '''
@@ -124,18 +126,24 @@ class CloudHeightTrainer(BaseTrainer):
         Labels shape: (N, 1)
         '''
         output = self.model(inputs)
-        loss = self.loss(labels, output)
-        #print('in step output', output)
-
+        
+        
+        clouds = (labels != -9999.)
+        class_loss = self.bce(output[:,:1], clouds.float())
+        reg_loss = self.loss(labels[clouds], output[:,1:][clouds])
+        total_loss = class_loss + reg_loss
+        
         if train:
             self.optimizer.zero_grad()
-            loss.backward()
+            total_loss.backward()
             self.optimizer.step()
 
         if log and (self.rank == 0):
-            self.log_scalar(loss, "loss", train=train)
+            self.log_scalar(class_loss, "classification", train=train)
+            self.log_scalar(reg_loss, "regression", train=train)
+            self.log_scalar(total_loss, "loss", train=train)
 
         if train:
             self.global_step += 1
 
-        return loss
+        return total_loss

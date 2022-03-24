@@ -44,58 +44,31 @@ def cleanup():
     dist.destroy_process_group()
     
     
-def get_model(input_size=9):
-    if input_size == 9:
-        model = nn.Sequential(
-                nn.Conv2d(10, 64, kernel_size=3, stride=2, padding=0, groups=10),
-                nn.ReLU(inplace=True), 
-                nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=0),
-                nn.ReLU(inplace=True),
-                nn.Flatten(),
-                nn.Dropout(0.25),
-                nn.Linear(128, 64),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.10),
-                nn.Linear(64, 1)
-        )
-    elif input_size == 1:
-        model = nn.Sequential(
-                nn.Conv2d(10, 64, kernel_size=1, stride=1, padding=0),
-                nn.ReLU(inplace=True), 
-                nn.Conv2d(64, 128, kernel_size=1, stride=1, padding=0),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
-                nn.ReLU(inplace=True),
-                #nn.Dropout(0.10),
-                nn.Conv2d(64, 1, kernel_size=1, stride=1, padding=0),
-        )   
-        
-    elif input_size == 3:
-        model = nn.Sequential(
-                nn.Conv2d(10, 64, kernel_size=3, stride=1, padding=0),
-                nn.ReLU(inplace=True), 
-                nn.Conv2d(64, 128, kernel_size=1, stride=1, padding=0),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
-                nn.ReLU(inplace=True),
-                #nn.Dropout(0.10),
-                nn.Conv2d(64, 1, kernel_size=1, stride=1, padding=0),
-        )   
-    else:
-        NotImplementedError
-        
-    return model
+class SimpleModel(torch.nn.Module):
 
-'''
-            nn.Flatten(),
-            nn.Linear(128, 64),
-            nn.ReLU(inplace=True),
-            nn.Linear(64, 32),
-            nn.ReLU(inplace=True),
-            nn.Linear(32, 1)
-    )
-    return model
-'''
+    def __init__(self, input_size):
+        super(SimpleModel, self).__init__()
+        self.net = nn.Sequential(
+                nn.Conv2d(10, 64, kernel_size=input_size, stride=1, padding=0),
+                nn.ReLU(inplace=True), 
+                nn.Conv2d(64, 128, kernel_size=1, stride=1, padding=0),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
+                nn.ReLU(inplace=True),
+                #nn.Dropout(0.10),
+                nn.Conv2d(64, 2, kernel_size=1, stride=1, padding=0),
+        )   
+        self.sig = nn.Sigmoid()
+        
+    def forward(self, x):
+        y = self.net(x)
+        y[:,0] = self.sig(y[:,0])
+        return y
+    
+    
+def get_model(input_size=1):
+    return SimpleModel(input_size)
+
 
 def train_net(params, rank=0):
     # set device
@@ -195,8 +168,8 @@ def run_training(args, world_size, port):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", default="models/patchsize-1-conv/", type=str)
-    parser.add_argument("--data_path", default="data/calipso_goes_pairs_w_qa/", type=str)
+    parser.add_argument("--model_path", default="models/patchsize-1-classify/", type=str)
+    parser.add_argument("--data_path", default="data/calipso_goes_pairs_w_noclouds/", type=str)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--max_iterations',type=int, default=2000000, 
