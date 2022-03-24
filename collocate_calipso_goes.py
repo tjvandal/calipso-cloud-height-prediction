@@ -24,13 +24,13 @@ GEO = goesr.GOESL1b(data_directory=goes_dir,
                     channels=bands)
 
 # where to save data
-write_dir='./data/calipso_goes_pairs_w_qa/'
+write_dir='./data/calipso_goes_pairs_w_noclouds/'
 if not os.path.exists(write_dir):
     os.makedirs(write_dir)
 
 def match_calipso_file_to_goes(f, write_dir):
     radius = 4
-    cal_ds = calipso.CalipsoFile(f).file_to_xarray()    
+    cal_ds = calipso.CalipsoFile(f).file_to_xarray()   
     prev_files = None
     for n, t in enumerate(cal_ds.time.values):
         lat = cal_ds.sel(time=t).lats.values
