@@ -1,4 +1,58 @@
-# cloud-height
+# Cloud height prediction from GOES-16/17
+
+## Install 
+
+## Training Process
+
+### Generate training dataset
+
+Collocated calipso observations with GOES-16/17 thermal bands. 
+
+GOES-16/17 data is located on NEX: `/nex/datapool/geonex/public/`
+
+Calispo data path on stored on /nobackupp10: `/nobackupp10/tvandal/data/calipso/` 
+
+Run command: `python collocate_calipso_goes.py` or `qsub collocate_calipso_goes.pbs`
+
+### Model 
+
+A fully convolutional model with spatial context only applied in layer 1 is applicable on arbitrarily sized images. Outputs two channels, cloud/no cloud classification and a regression value. 
+
+```       
+model = nn.Sequential(
+    nn.Conv2d(10, 64, kernel_size=1, stride=1, padding=0),
+    nn.ReLU(inplace=True), 
+    nn.Conv2d(64, 128, kernel_size=1, stride=1, padding=0),
+    nn.ReLU(inplace=True),
+    nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
+    nn.ReLU(inplace=True),
+    #nn.Dropout(0.10),
+    nn.Conv2d(64, 2, kernel_size=1, stride=1, padding=0),
+) 
+```
+
+### Training 
+
+`python train.py --model_path [path]  --data_path [data path] --batch_size [64] --lr [1e-3] ...`
+
+Tensorboard logged at `model_path/`.  `tensorboard --logdir model_path`
+
+### Testing
+
+Cloud vs no cloud classification accuracy. Regression bias/variance statistics.  
+
+Code: ...
+
+
+## Application
+
+Generate a cloud top height dataset from GOES-16 in 2020. Make a short video of cloud heights with corresponding geocolor imagery. 
+
+Code: `inference.py` (in progress)
+
+## Comparison with NOAA CTP
+
+Pull NOAA CTP product onto /nobackupp10 
 
 
 ## References 
