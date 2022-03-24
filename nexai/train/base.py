@@ -46,8 +46,8 @@ class BaseTrainer(nn.Module):
     def _set_optimizer(self):
         # set optimizer
         #if self.rank == 0:
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
-
+        #self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=1e-4, eps=1e-8)
 
     def _set_summary_writer(self):
         self.tfwriter_train = SummaryWriter(os.path.join(self.model_path, 'train', 'tfsummary'))
@@ -123,11 +123,10 @@ class CloudHeightTrainer(BaseTrainer):
         Inputs shape: (N, C, H, W)
         Labels shape: (N, 1)
         '''
-        
         output = self.model(inputs)
-        
         loss = self.loss(labels, output)
-        
+        #print('in step output', output)
+
         if train:
             self.optimizer.zero_grad()
             loss.backward()

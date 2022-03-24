@@ -15,7 +15,7 @@ class CalipsoFile:
 
         cad_score = cal.select('CAD_Score')[:,0]
         num_layers = cal.select('Number_Layers_Found')[:,0]
-        rows = (np.abs(cad_score == 100)) # * (num_layers >= 0)
+        rows = (np.abs(cad_score) == 100) + (cad_score == -127)
         
         times = cal.select('Profile_UTC_Time')[:,0][rows]
                 
@@ -36,7 +36,6 @@ class CalipsoFile:
         variables = ['Layer_Top_Altitude', 'Layer_Base_Altitude', 
                      'Layer_Top_Pressure', 'Layer_Base_Pressure',
                      'Surface_Top_Altitude_532']
-        print('surface altitude shape', cal.select('Surface_Top_Altitude_532')[:].shape)
         layers = np.arange(10)
         for v in variables:
             x = cal.select(v)[:][rows]
