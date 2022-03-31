@@ -45,19 +45,19 @@ def cleanup():
     
     
 class SimpleModel(torch.nn.Module):
-
     def __init__(self, input_size):
         super(SimpleModel, self).__init__()
+        hdim = 128
         self.net = nn.Sequential(
-                nn.Conv2d(10, 64, kernel_size=input_size, stride=1, padding=0),
+                nn.Conv2d(10, hdim, kernel_size=input_size, stride=1, padding=0),
                 nn.ReLU(inplace=True), 
-                nn.Conv2d(64, 128, kernel_size=1, stride=1, padding=0),
+                nn.Conv2d(hdim, hdim, kernel_size=1, stride=1, padding=0),
                 nn.ReLU(inplace=True),
-                nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
+                nn.Conv2d(hdim, hdim, kernel_size=1, stride=1, padding=0),
                 nn.ReLU(inplace=True),
                 #nn.Dropout(0.10),
-                nn.Conv2d(64, 2, kernel_size=1, stride=1, padding=0),
-        )   
+                nn.Conv2d(hdim, 2, kernel_size=1, stride=1, padding=0),
+        )
         self.sig = nn.Sigmoid()
         
     def forward(self, x):
@@ -168,8 +168,8 @@ def run_training(args, world_size, port):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", default="models/patchsize-1-classify/", type=str)
-    parser.add_argument("--data_path", default="data/calipso_goes_pairs_w_noclouds/", type=str)
+    parser.add_argument("--model_path", default="models/patchsize-1-classify-round2/", type=str)
+    parser.add_argument("--data_path", default="data/calipso_goes_pairs_2/", type=str)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--lr", default=1e-3, type=float)
     parser.add_argument('--max_iterations',type=int, default=2000000, 

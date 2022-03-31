@@ -11,7 +11,9 @@ import glob
 
 import torch
 import matplotlib.pyplot as plt
-
+import scipy.stats
+import sklearn.metrics
+    
 from nexai.data import calipso
 from nexai.data.geo import goesr
 from train import get_model
@@ -75,7 +77,7 @@ class CloudHeight(object):
         r = int((tile_size - 1) // 2)
         y = np.zeros((h, w))
         counter = np.zeros((h, w))
-        pad = 0
+        pad = 1
         for i in range(0, h, stride):
             for j in range(0, w, stride):
                 i = min(h-tile_size, i)
@@ -87,7 +89,7 @@ class CloudHeight(object):
                 values = output[:,1:]
                 values = (values * 2) + 5
                 
-                cloudy = probs > 0.1
+                cloudy = probs > 0.5
                 result = np.where(cloudy, values, np.zeros_like(values))
                 
                 y[i+pad:i+tile_size-pad, j+pad:j+tile_size-pad] += result[0,0] #result[0,0]
@@ -102,11 +104,11 @@ class CloudHeight(object):
     
 
 def make_cloud_height_map():
-    patch_size = 1
+    patch_size = 3
     model = get_model(input_size=patch_size)
-    checkpoint_file = 'models/patchsize-1-classify/checkpoint.pth.tar'
+    checkpoint_file = 'models/patchsize-3-classify-larger/checkpoint.pth.tar'
     runner = CloudHeight(model, checkpoint_file, product='ABI-L1b-RadF')
-    t = dt.datetime.now() - dt.timedelta(hours=2, days=2)
+    t = dt.datetime.now() - dt.timedelta(hours=1, days=1)
     ds = runner.forward(t)
     
     print(ds)
@@ -114,9 +116,9 @@ def make_cloud_height_map():
     fig, axs = plt.subplots(2,1,figsize=(6,10))
     axs = axs.flatten()
     
-    axs[0].imshow(ds['Rad'].sel(band=9).values[::-1], vmin=220, vmax=320, cmap='jet')
+    axs[0].imshow(ds['Rad'].sel(band=12).values[::-1], vmin=220, vmax=320, cmap='jet')
     
-    im = axs[1].imshow(ds['CTH'].values[::-1], cmap='rainbow', vmin=0, vmax=8)
+    im = axs[1].imshow(ds['CTH'].values[::-1], cmap='rainbow', vmin=0, vmax=12)
     #axs[1].set_colorbar()
     fig.colorbar(im, ax=axs[1], shrink=0.5)
     plt.savefig('heights_map.png', dpi=200)
@@ -126,36 +128,55 @@ def make_cloud_height_map():
 
         
 def test_set_results():
-    patch_size = 1
+    patch_size = 3
     
     model = get_model(input_size=patch_size).cuda()
-    checkpoint_file = 'models/patchsize-1-classify/checkpoint.pth.tar'
+    checkpoint_file = 'models/patchsize-3-classify-larger/checkpoint.pth.tar'
     checkpoint = torch.load(checkpoint_file)
     model.load_state_dict(checkpoint['model'])
     
     #runner = CloudHeight(model, checkpoint_file)
-    data_path = '/nobackupp10/tvandal/cloud-height/data/calipso_goes_pairs_w_qa/' 
+    data_path = '/nobackupp10/tvandal/cloud-height/data/calipso_goes_pairs_w_noclouds/' 
     dataset = CalipsoGOES(data_path, patch_size=patch_size, mode='test')
     
     data = []
     
-    N = 500
+    N = 1000
     arr = np.random.choice(np.arange(len(dataset)), N)
+    labels = []
     for i in arr:
         x, label = dataset[i]
         x = x.unsqueeze(0).cuda()
         prediction = model(x)
-        data.append([prediction.cpu().detach().numpy()[0,0,0], 
-                     label[0,0,0].numpy()])
-        print(data[-1])
+        data.append(prediction.cpu().detach().numpy())
+        labels.append(label.unsqueeze(0))
+
         #print(prediction, label)
-    data = np.array(data)
+    data = np.concatenate(data)
+    labels = np.concatenate(labels)
     
-    import scipy.stats
+    print(data.shape, labels.shape)
     
-    print("pearson", scipy.stats.pearsonr(data[:,0], data[:,1]))
-        
-    plt.scatter(data[:,0], data[:,1])
+    cloudy = (labels != -9999.)
+    predclass = (data[:,:1] > 0.5)
+    
+    accuracy = (cloudy == predclass).mean()
+    f1 = sklearn.metrics.f1_score(cloudy.flatten().astype(bool), predclass.flatten().astype(bool))
+    
+    print(f"Cloud classification accuracy: {accuracy}")
+    print(f"F1 score: {f1}")
+
+    data[:,1:] = (data[:,1:] * 2) + 5
+    labels[cloudy] = (labels[cloudy] * 2) + 5
+    
+    print("Pearson", scipy.stats.pearsonr(data[:,1:][cloudy], labels[cloudy]))
+    err = data[:,1:][cloudy] - labels[cloudy]
+    bias = np.mean(err)
+    mae = np.abs(err).mean()
+    print(f"MAE: {mae}")
+    print(f"Bias: {bias}")
+
+    plt.scatter(labels[cloudy].flatten(), data[:,1:][cloudy].flatten())
     plt.xlim([0,10])
     plt.ylim([0,10])
     plt.savefig("heights.png")
@@ -163,4 +184,4 @@ def test_set_results():
         
 if __name__ == '__main__':
     make_cloud_height_map()
-    #test_set_results()
+    test_set_results()

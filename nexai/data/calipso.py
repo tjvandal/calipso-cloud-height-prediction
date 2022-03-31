@@ -12,13 +12,23 @@ class CalipsoFile:
         cal = SD(self.file, SDC.READ)
         indicies = np.arange(len(cal.select('Latitude')[:]))
         ds = {}
-
+        
         cad_score = cal.select('CAD_Score')[:,0]
         num_layers = cal.select('Number_Layers_Found')[:,0]
-        rows = (np.abs(cad_score) == 100) + (cad_score == -127)
         
+        qa_factor = cal.select('Layer_IAB_QA_Factor')[:,0]
+        surface_flags = cal.select('Surface_Detection_Flags_532')[:,0].astype(np.int16)
+        surface_confidence = cal.select('Surface_Detection_Confidence_1064')[:,0]
+
+        # first bit = 1 denotes surface detected.  convert int16 to bits 
+        surface_flags_bit = np.array([int('{0:016b}'.format(val)[-1]) for val in surface_flags])
+
+        surface_rows = (surface_flags_bit == 1) * (cad_score == -127)
+        cloud_rows = (cad_score == 100) 
+        rows = cloud_rows + surface_rows
+
         times = cal.select('Profile_UTC_Time')[:,0][rows]
-                
+
         #  'yymmdd.ffffffff'
         profile_time_to_dt = lambda t: dt.datetime(year=2000+int(t[:2]),
                                                    month=int(t[2:4]),

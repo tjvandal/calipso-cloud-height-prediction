@@ -24,7 +24,7 @@ GEO = goesr.GOESL1b(data_directory=goes_dir,
                     channels=bands)
 
 # where to save data
-write_dir='./data/calipso_goes_pairs_w_noclouds/'
+write_dir='./data/calipso_goes_pairs_2/'
 if not os.path.exists(write_dir):
     os.makedirs(write_dir)
 

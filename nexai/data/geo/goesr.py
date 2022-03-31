@@ -10,6 +10,7 @@ from mpl_toolkits.basemap import Basemap
 import pyproj
 import pyresample
 from .. import utils
+import pickle
 
 def get_filename_metadata(f):
     channel = int(f.split('_')[1][-2:])
@@ -141,7 +142,7 @@ class L1bBand(object):
             return ix, iy
         
         
-    def reproject_to_latlon(self):
+    def _reproject_to_latlon(self): # deprecated
         data = self.open_dataset()
         lats, lons = self.latlon()
         sat_lon = data['goes_imager_projection'].longitude_of_projection_origin
@@ -172,6 +173,84 @@ class L1bBand(object):
         return xr.Dataset(dict(Rad=data_new))
 
 
+    def reproject_to_latlon(self, chunks=None, bounds=None):
+        """
+        args:
+            chunks: dask chunk size by dimension eg. dict(lat=500,lon=500)
+            cache: store to zarr
+            bounds: [lat_ul, lon_ul, lat_lr, lon_lr]
+        """
+
+        s = 0.02
+        if self.band in [1, 3, 4, 5, 6]:
+            data = self.interp(0.5)
+            orig_res = 1
+        elif self.band == 2:
+            # s = 0.005
+            data = self.interp(0.25)
+            orig_res = 0.5
+        else:
+            data = self.open_dataset(chunks=chunks)
+            orig_res = 2
+
+        lats, lons = self.latlon()
+        lats = lats.astype(np.float32)
+        lons = lons.astype(np.float32)
+        sat_lon = data["goes_imager_projection"].longitude_of_projection_origin
+
+        if not bounds:
+            lat_min = np.around(max(np.nanmin(lats), -60), 3)
+            lat_max = np.around(min(np.nanmax(lats), 60), 3)
+            lon_min = np.around(max(np.nanmin(lons), sat_lon - 60), 3)
+            lon_max = np.around(min(np.nanmax(lons), sat_lon + 60), 3)
+        else:
+            lat_min = bounds[2]
+            lat_max = bounds[0]
+            lon_min = bounds[1]
+            lon_max = bounds[3]
+
+        lats_new = np.arange(lat_min, lat_max, s).astype(np.float32)
+        lons_new = np.arange(lon_min, lon_max, s).astype(np.float32)
+        lons_new, lats_new = np.meshgrid(lons_new, lats_new)
+
+        source_def = pyresample.geometry.SwathDefinition(lats=lats, lons=lons)
+        target_def = pyresample.geometry.GridDefinition(lons=lons_new, lats=lats_new)
+
+        neighbor_cache_file = os.path.join(
+            os.path.dirname(__file__),
+            f"neighbors_{self.spatial}_{sat_lon:3.3f}_{orig_res}.pkl",
+        )
+        if os.path.exists(neighbor_cache_file):
+            with open(neighbor_cache_file, "rb") as fp:
+                neighbor_info = pickle.load(fp)
+        else:
+            neighbor_info = pyresample.kd_tree.get_neighbour_info(
+                source_def, target_def, 50000, epsilon=0.02, neighbours=1
+            )
+
+            with open(neighbor_cache_file, "wb") as fp:
+                pickle.dump(neighbor_info, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+        result = pyresample.kd_tree.get_sample_from_neighbour_info(
+            "nn",
+            target_def.shape,
+            data["Rad"].values.astype(np.float32),
+            neighbor_info[0],
+            neighbor_info[1],
+            neighbor_info[2],
+            distance_array=neighbor_info[3],
+        )
+
+        data_new = xr.DataArray(
+            result,
+            coords=dict(lat=lats_new[:, 0], lon=lons_new[0, :]),
+            dims=("lat", "lon"),
+        )
+
+        ds = xr.Dataset(dict(Rad=data_new))
+
+        return ds
+    
 class GroupBandTemporal(object):
     def __init__(self, data_list):
         self.data = data_list

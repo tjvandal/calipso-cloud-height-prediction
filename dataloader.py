@@ -38,7 +38,13 @@ class CalipsoGOES(data.Dataset):
             return self.__getitem__(idx-1)
         
         r = int((self.patch_size - 1) / 2)
-        x = ds['Rad'].values # (band, lat, lon) (values in K)
+        try:
+            x = ds['Rad'].values # (band, lat, lon) (values in K)
+        except  KeyError:
+            os.remove(f)
+            del self.files[idx]
+            return self.__getitem__(idx-1)
+
         c, h, w  = x.shape
         md = int(h / 2)
         x = x[:,md-r:md+r+1,md-r:md+r+1]

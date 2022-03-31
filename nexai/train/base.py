@@ -125,14 +125,13 @@ class CloudHeightTrainer(BaseTrainer):
         Inputs shape: (N, C, H, W)
         Labels shape: (N, 1)
         '''
-        output = self.model(inputs)
-        
-        
+        output = self.model(inputs) 
+
         clouds = (labels != -9999.)
         class_loss = self.bce(output[:,:1], clouds.float())
         reg_loss = self.loss(labels[clouds], output[:,1:][clouds])
         total_loss = class_loss + reg_loss
-        
+ 
         if train:
             self.optimizer.zero_grad()
             total_loss.backward()
