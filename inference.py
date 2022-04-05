@@ -19,6 +19,8 @@ from nexai.data.geo import goesr
 from train import get_model
 from dataloader import CalipsoGOES
     
+from nexai.data.geo import stats
+
 class CloudHeight(object):
     def __init__(self, 
                  model, 
@@ -38,6 +40,11 @@ class CloudHeight(object):
         self.geo = goesr.GOESL1b(product=product,
                                  channels=bands)
         self.model = self.model.cuda()
+        self.model.train(False)
+        self.mu, self.sd = stats.get_sensor_stats('G16')
+        self.mu = np.array([self.mu[b-1] for b in bands])[:,np.newaxis,np.newaxis]
+        self.sd = np.array([self.sd[b-1] for b in bands])[:,np.newaxis,np.newaxis]
+        
         
     def forward(self, t):
         files = self.geo.snapshot_file(t.year, t.timetuple().tm_yday, 
@@ -60,12 +67,13 @@ class CloudHeight(object):
         
         
         x = geo_ds['Rad'].values
-        x = (x - 150) / (350 - 150)
+        #x = (x - 150) / (350 - 150)
+        x = (x - self.mu) / self.sd
         
         c, h, w = x.shape
         
         tile_size = 512
-        stride = 400        
+        stride = 500        
         
         # (1, C, H, W)
         #x_tensor = torch.Tensor(x).float().unsqueeze(0)
@@ -77,7 +85,7 @@ class CloudHeight(object):
         r = int((tile_size - 1) // 2)
         y = np.zeros((h, w))
         counter = np.zeros((h, w))
-        pad = 1
+        pad = 0
         for i in range(0, h, stride):
             for j in range(0, w, stride):
                 i = min(h-tile_size, i)
@@ -87,7 +95,7 @@ class CloudHeight(object):
                 output = self.model(x_tensor).cpu().detach().numpy()
                 probs = output[:,:1]
                 values = output[:,1:]
-                values = (values * 2) + 5
+                values = (values * 10) + 5
                 
                 cloudy = probs > 0.5
                 result = np.where(cloudy, values, np.zeros_like(values))
@@ -104,16 +112,19 @@ class CloudHeight(object):
     
 
 def make_cloud_height_map():
-    patch_size = 3
+    patch_size = 1
     model = get_model(input_size=patch_size)
-    checkpoint_file = 'models/patchsize-3-classify-larger/checkpoint.pth.tar'
-    runner = CloudHeight(model, checkpoint_file, product='ABI-L1b-RadF')
+    checkpoint_file = 'models/patchsize-1-classify-round5/checkpoint.pth.tar'
+    runner = CloudHeight(model, 
+                         checkpoint_file, 
+                         product='ABI-L1b-RadF')
+    
     t = dt.datetime.now() - dt.timedelta(hours=1, days=1)
     ds = runner.forward(t)
     
     print(ds)
     
-    fig, axs = plt.subplots(2,1,figsize=(6,10))
+    fig, axs = plt.subplots(1,2,figsize=(10,5))
     axs = axs.flatten()
     
     axs[0].imshow(ds['Rad'].sel(band=12).values[::-1], vmin=220, vmax=320, cmap='jet')
@@ -128,15 +139,15 @@ def make_cloud_height_map():
 
         
 def test_set_results():
-    patch_size = 3
+    patch_size = 1
     
     model = get_model(input_size=patch_size).cuda()
-    checkpoint_file = 'models/patchsize-3-classify-larger/checkpoint.pth.tar'
+    checkpoint_file = 'models/patchsize-1-classify-round5/checkpoint.pth.tar'
     checkpoint = torch.load(checkpoint_file)
     model.load_state_dict(checkpoint['model'])
     
     #runner = CloudHeight(model, checkpoint_file)
-    data_path = '/nobackupp10/tvandal/cloud-height/data/calipso_goes_pairs_w_noclouds/' 
+    data_path = '/nobackupp10/tvandal/cloud-height/data/calipso_goes_pairs_2/' 
     dataset = CalipsoGOES(data_path, patch_size=patch_size, mode='test')
     
     data = []
@@ -166,8 +177,8 @@ def test_set_results():
     print(f"Cloud classification accuracy: {accuracy}")
     print(f"F1 score: {f1}")
 
-    data[:,1:] = (data[:,1:] * 2) + 5
-    labels[cloudy] = (labels[cloudy] * 2) + 5
+    data[:,1:] = (data[:,1:] * 10) + 5
+    labels[cloudy] = (labels[cloudy] * 10) + 5
     
     print("Pearson", scipy.stats.pearsonr(data[:,1:][cloudy], labels[cloudy]))
     err = data[:,1:][cloudy] - labels[cloudy]
@@ -179,6 +190,8 @@ def test_set_results():
     plt.scatter(labels[cloudy].flatten(), data[:,1:][cloudy].flatten())
     plt.xlim([0,10])
     plt.ylim([0,10])
+    plt.xlabel("Calipso Label (km)")
+    plt.ylabel("Cloud Height Prediction")
     plt.savefig("heights.png")
     plt.close()
         

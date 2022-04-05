@@ -13,6 +13,7 @@ from .. import utils
 import pickle
 
 def get_filename_metadata(f):
+    f = os.path.basename(f)
     channel = int(f.split('_')[1][-2:])
     spatial = f.split('-')[2]
     t1 = f.split('_')[3]

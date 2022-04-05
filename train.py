@@ -55,7 +55,7 @@ class SimpleModel(torch.nn.Module):
                 nn.ReLU(inplace=True),
                 nn.Conv2d(hdim, hdim, kernel_size=1, stride=1, padding=0),
                 nn.ReLU(inplace=True),
-                #nn.Dropout(0.10),
+                nn.Dropout2d(0.10),
                 nn.Conv2d(hdim, 2, kernel_size=1, stride=1, padding=0),
         )
         self.sig = nn.Sigmoid()

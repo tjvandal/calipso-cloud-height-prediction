@@ -6,6 +6,8 @@ import xarray as xr
 import torch
 from torch.utils import data
 
+from nexai.data.geo import stats
+
 class CalipsoGOES(data.Dataset):
     def __init__(self, directory, patch_size=9, mode='train'):
         self.directory = directory
@@ -20,6 +22,12 @@ class CalipsoGOES(data.Dataset):
         elif mode == 'test':
             self.files = self.files[int(0.9*N):]
             
+        bands = list(range(7,17))
+        self.mu, self.sd = stats.get_sensor_stats('G16')
+        self.mu = np.array([self.mu[b-1] for b in bands])[:,np.newaxis,np.newaxis]
+        self.sd = np.array([self.sd[b-1] for b in bands])[:,np.newaxis,np.newaxis]
+        
+        
     def __len__(self):
         return len(self.files)
     
@@ -49,7 +57,10 @@ class CalipsoGOES(data.Dataset):
         md = int(h / 2)
         x = x[:,md-r:md+r+1,md-r:md+r+1]
 
-        x = (x - 150) / (350 - 150)
+        #x = (x - 150) / (350 - 150)
+        
+        x = (x - self.mu) / self.sd
+        
         if np.mean(np.isfinite(x)) != 1.:
             print('found nan: remove', idx, f)
             os.remove(f)
@@ -61,7 +72,7 @@ class CalipsoGOES(data.Dataset):
         y = y[:1]
         y = torch.Tensor(y).float()
         
-        y[y != -9999] = (y[y != -9999] - 5) / 2
+        y[y != -9999] = (y[y != -9999] - 5) / 10
         
         #y[y==-9999] = -10.
         

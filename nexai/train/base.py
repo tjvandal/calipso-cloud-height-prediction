@@ -129,7 +129,11 @@ class CloudHeightTrainer(BaseTrainer):
 
         clouds = (labels != -9999.)
         class_loss = self.bce(output[:,:1], clouds.float())
-        reg_loss = self.loss(labels[clouds], output[:,1:][clouds])
+        if sum(clouds) > 0:
+            reg_loss = self.loss(labels[clouds], output[:,1:][clouds])
+        else:
+            reg_loss = 0
+            
         total_loss = class_loss + reg_loss
  
         if train:
