@@ -40,9 +40,7 @@ Tensorboard logged at `model_path/`.  `tensorboard --logdir model_path`
 ### Testing
 
 Cloud vs no cloud classification accuracy. Regression bias/variance statistics.  
-
-Code: ...
-
+`test.py`: Generates maps of cloud height and results on test set. 
 
 ## Application
 
